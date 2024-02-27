@@ -1,0 +1,66 @@
+from Crypto.PublicKey import RSA
+from Crypto.Signature import pkcs1_15
+from Crypto.Hash import SHA256
+import PyPDF2
+import qrcode
+from reportlab.pdfgen import canvas
+from reportlab.lib.pagesizes import letter
+
+# Generar llaves RSA para Alice y AC
+key_alice = RSA.generate(2048, e=65537)
+key_ac = RSA.generate(2048, e=65537)
+
+# Suponiendo que ya hemos leído el contenido del PDF en 'contenido_pdf'
+pdf_path = 'C:\\Users\\sebas\\Desktop\\Seguridad\\Proyecto_Parcial_1\\NDA\\NDA.pdf'
+with open(pdf_path, 'rb') as file:
+    contenido_pdf = file.read()
+hash_contrato = SHA256.new(contenido_pdf)
+
+# Alice firma el hash del contrato
+firma_alice = pkcs1_15.new(key_alice).sign(hash_contrato)
+
+# Generar un código QR para la firma
+qr = qrcode.QRCode(version=1, box_size=10, border=5)
+qr.add_data(firma_alice)
+qr.make(fit=True)
+img = qr.make_image(fill='black', back_color='white')
+
+qr_image_path = "firma_alice_qr.png"
+img.save(qr_image_path)
+
+qr_pdf_path = "qr_code.pdf"
+c = canvas.Canvas(qr_pdf_path, pagesize=letter)
+c.drawImage(qr_image_path, 100, 400, width=300, height=300)  # Adjust position and size as needed
+c.save()
+
+# AC verifica la firma de Alice
+try:
+    pkcs1_15.new(key_alice.publickey()).verify(hash_contrato, firma_alice)
+    print("La firma de Alice es válida.")
+    # AC firma el contrato
+    firma_ac = pkcs1_15.new(key_ac).sign(hash_contrato)
+except (ValueError, TypeError):
+    print("La firma de Alice es inválida.")
+
+try:
+    pkcs1_15.new(key_ac.publickey()).verify(hash_contrato, firma_ac)
+    print("La firma de la AC es válida.")
+except (ValueError, TypeError):
+    print("La firma de la AC es inválida.")
+
+merged_pdf_path = "NDA_with_QR.pdf"  
+
+original_pdf = PyPDF2.PdfReader(pdf_path)
+qr_pdf = PyPDF2.PdfReader(qr_pdf_path)
+
+writer = PyPDF2.PdfWriter()
+
+for pageNum in range(len(original_pdf.pages)):
+    page = original_pdf.pages[pageNum]  
+    writer.add_page(page)
+qr_page = qr_pdf.pages[0]  
+writer.add_page(qr_page)
+with open(merged_pdf_path, 'wb') as f_out:
+    writer.write(f_out)
+
+print("PDF with QR code generated successfully.")

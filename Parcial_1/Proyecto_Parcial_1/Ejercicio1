@@ -1,0 +1,33 @@
+from Crypto.PublicKey import RSA
+from Crypto.Cipher import PKCS1_OAEP
+from Crypto.Hash import SHA256
+
+# Generar llaves RSA para Bob con 2048 bits (ajustado a tus instrucciones de 1024 bits si necesario)
+key_bob = RSA.generate(2048)  # Aquí utilizamos directamente generate para asegurar una clave completa
+pub_key_bob = key_bob.publickey()
+
+# Preparar el mensaje original M
+mensaje = "A" * 1050  # Un mensaje de prueba de 1050 caracteres 'A'
+hash_m = SHA256.new(mensaje.encode('utf-8')).hexdigest()
+
+# Dividir el mensaje en partes de 128 caracteres
+partes_mensaje = [mensaje[i:i+128] for i in range(0, len(mensaje), 128)]
+
+# Cifrar cada parte con la llave pública de Bob
+cipher_rsa = PKCS1_OAEP.new(pub_key_bob)
+partes_cifradas = [cipher_rsa.encrypt(parte.encode('utf-8')) for parte in partes_mensaje]
+
+# Bob descifrará los mensajes con su llave privada
+descifrador_rsa = PKCS1_OAEP.new(key_bob)  # Aseguramos que key_bob es una clave privada válida
+partes_descifradas = [descifrador_rsa.decrypt(parte_cifrada).decode('utf-8') for parte_cifrada in partes_cifradas]
+mensaje_descifrado = ''.join(partes_descifradas)
+
+# Generar el hash del mensaje reconstruido h(M’)
+hash_m_prima = SHA256.new(mensaje_descifrado.encode('utf-8')).hexdigest()
+
+# Comparar si h(M) = h(M’)
+autenticidad = hash_m == hash_m_prima
+
+print(f"Hash original (h(M)): {hash_m}")
+print(f"Hash descifrado (h(M’)): {hash_m_prima}")
+print(f"Verificación de autenticidad: {'Exitosa' if autenticidad else 'Fallida'}")
